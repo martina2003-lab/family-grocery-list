@@ -1,6 +1,6 @@
-# App Spesa Famiglia — Architettura
+# Family Grocery List — Architecture
 
-## Panoramica
+## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -8,71 +8,72 @@
 │         HTML5 + JavaScript (Responsive)                 │
 │         Mobile · Tablet · Desktop                       │
 └─────────────────────┬───────────────────────────────────┘
-                      │ @supabase/supabase-js (client diretto)
+                      │ @supabase/supabase-js (direct client)
 ┌─────────────────────▼───────────────────────────────────┐
 │                   SUPABASE                               │
-│         Database Postgres · Realtime · Auth (non usata) │
+│         Postgres Database · Realtime · Auth (unused)    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-Due livelli, non tre: **niente backend scritto da noi**. Il frontend parla
-direttamente con Supabase tramite il client JS ufficiale — non ci sono rotte
-REST proprietarie, non c'è un server Python da mantenere online. Questo era
-il piano originale (vedi la sezione "Storia" in fondo), abbandonato perché
-Supabase copre già tutto il necessario con molto meno lavoro.
+Two layers, not three: **no backend written by us**. The frontend talks
+directly to Supabase through the official JS client — there are no
+proprietary REST routes, no Python server to keep online. That was the
+original plan (see the "History" section at the bottom), abandoned because
+Supabase already covers everything needed with far less work.
 
 ---
 
-## Livello 1 — User Interface
+## Layer 1 — User Interface
 
-### Tecnologie
-- **HTML5** — struttura pagine e componenti
-- **CSS3** — layout responsive, tema dark/light, animazioni
-- **JavaScript Vanilla** — logica UI, chiamate a Supabase, aggiornamento DOM
-- **PWA** — installabile su iPhone/Android come app nativa
+### Technologies
+- **HTML5** — page and component structure
+- **CSS3** — responsive layout, dark/light theme, animations
+- **Vanilla JavaScript** — UI logic, Supabase calls, DOM updates
+- **PWA** — installable on iPhone/Android as a native-like app
 
-### Responsività
-| Dispositivo | Breakpoint | Layout |
-|-------------|------------|--------|
-| Mobile      | < 480px    | Single column, FAB, nav bottom |
-| Tablet      | 480–1024px | Single column largo |
-| Desktop     | > 1024px   | Single column, centrato (max-width) |
+### Responsiveness
+| Device  | Breakpoint | Layout |
+|---------|------------|--------|
+| Mobile  | < 480px    | Single column, FAB, bottom nav |
+| Tablet  | 480–1024px | Wide single column |
+| Desktop | > 1024px   | Single column, centered (max-width) |
 
-### Schermate
-- **Lista Spesa** — lista prodotti condivisa, aggiunta rapida, swipe per eliminare
-- **Preferiti** — prodotti salvati per membro, aggiunta rapida alla lista
-- **Grafici (Dashboard)** — top prodotti, torta categorie, podio spese completate
-- **Profilo** — foto/nome personalizzati, statistiche personali, storyboard
-  settimanale, Zona Amministratore (solo JackJack)
+### Screens
+- **Grocery List** — shared product list, quick add, swipe to delete
+- **Favorites** — saved products per member, quick add to the list
+- **Charts (Dashboard)** — top products, category pie chart, completed
+  shopping trips podium
+- **Profile** — custom photo/name, personal stats, weekly storyboard,
+  Admin Zone (JackJack only)
 
-### File JS principali (`source/js/`)
-| File | Responsabilità |
+### Main JS files (`source/js/`)
+| File | Responsibility |
 |------|-----------------|
-| `storage.js` | Client Supabase: init, realtime, get/set generico, CRUD prodotti riga-per-riga |
-| `categorie.js` | Le 17 categorie e il dizionario di riconoscimento automatico |
-| `famiglia.js` | I 6 membri, ruolo admin, avatar |
-| `lista.js` | Logica lista spesa: aggiungi/elimina/spunta/fine spesa |
-| `preferiti.js` | Prodotti preferiti per membro |
-| `dashboard.js` | Grafici (top prodotti, torta categorie, podio) |
-| `app.js` | Navigazione, modali, profilo, tema, reset giornaliero |
-| `init-immagini.js` | Cache locale (base64) di avatar e sfondi tema |
+| `storage.js` | Supabase client: init, realtime, generic get/set, row-by-row product CRUD |
+| `categorie.js` | The 17 categories and the automatic recognition dictionary |
+| `famiglia.js` | The 6 members, admin role, avatars |
+| `lista.js` | Grocery list logic: add/delete/check/finish shopping |
+| `preferiti.js` | Favorite products per member |
+| `dashboard.js` | Charts (top products, category pie chart, podium) |
+| `app.js` | Navigation, modals, profile, theme, daily reset |
+| `init-immagini.js` | Local (base64) cache of avatars and theme backgrounds |
 
 ---
 
-## Livello 2 — Supabase
+## Layer 2 — Supabase
 
-### Perché Supabase e non un backend proprio
-- Nessun server da scrivere, ospitare o tenere online
-- Sincronizzazione realtime tra i dispositivi della famiglia già inclusa
-  (canali Postgres Changes)
-- Piano gratuito sufficiente per l'uso di una famiglia di 6 persone
+### Why Supabase instead of a custom backend
+- No server to write, host, or keep online
+- Realtime sync across the family's devices already included (Postgres
+  Changes channels)
+- Free tier is enough for a family of 6
 
-### Tabelle
+### Tables
 
 #### `stato`
-Chiave/valore generico: qui vive tutto **tranne** i prodotti della lista
-(preferiti per membro, storico acquisti, foto/nomi personalizzati, tema
-di chi sta facendo la spesa, contatori statistiche...).
+Generic key/value store: everything **except** the list products lives
+here (favorites per member, purchase history, custom photos/names, theme,
+who's currently shopping, stat counters...).
 ```sql
 CREATE TABLE stato (
   chiave  TEXT PRIMARY KEY,
@@ -81,9 +82,9 @@ CREATE TABLE stato (
 ```
 
 #### `prodotti`
-Una riga per prodotto della lista condivisa — non un blob unico. Così due
-persone che aggiungono o modificano prodotti diversi nello stesso istante
-non si sovrascrivono a vicenda (il vecchio bug dei "prodotti spariti").
+One row per product in the shared list — not a single blob. This way two
+people adding or editing different products at the same instant don't
+overwrite each other (the old "vanishing products" bug).
 ```sql
 CREATE TABLE prodotti (
   id              TEXT PRIMARY KEY,
@@ -101,63 +102,65 @@ CREATE TABLE prodotti (
 ```
 
 ### Realtime
-Due canali Postgres Changes aperti da `Storage.init()`:
-- `stato-changes` — su INSERT/UPDATE/DELETE della tabella `stato`, aggiorna
-  `localStorage` sul dispositivo e ridisegna le viste interessate
-- `prodotti-changes` — su INSERT/UPDATE/DELETE della tabella `prodotti`,
-  applica la modifica riga per riga alla lista in memoria (mai una
-  sovrascrittura totale)
+Two Postgres Changes channels opened by `Storage.init()`:
+- `stato-changes` — on INSERT/UPDATE/DELETE of the `stato` table, updates
+  `localStorage` on the device and redraws the affected views
+- `prodotti-changes` — on INSERT/UPDATE/DELETE of the `prodotti` table,
+  applies the change row-by-row to the in-memory list (never a full
+  overwrite)
 
-### Sicurezza
-La chiave usata nel client (`SUPABASE_KEY` in `storage.js`) è pubblica per
-natura (tipo `anon`/`publishable`): può stare nel codice frontend. Chi
-protegge davvero i dati sono le **Row Level Security policy** configurate
-sul progetto Supabase — vanno verificate periodicamente, non il codice qui.
+### Security
+The key used in the client (`SUPABASE_KEY` in `storage.js`) is public by
+nature (an `anon`/`publishable` key): it's fine for it to live in frontend
+code. What actually protects the data are the **Row Level Security
+policies** configured on the Supabase project — those need periodic
+review, not the code here.
 
-### Cosa NON usiamo di Supabase
-- **Auth** — la selezione del profilo è locale, senza password (per design:
-  è un'app di famiglia, non serve autenticazione)
-- **Storage (file)** — le foto profilo sono salvate come base64 dentro la
-  tabella `stato`, non nel bucket Storage di Supabase
+### What we do NOT use from Supabase
+- **Auth** — profile selection is local, no password (by design: it's a
+  family app, no authentication needed)
+- **Storage (files)** — profile photos are saved as base64 inside the
+  `stato` table, not in Supabase's Storage bucket
 
 ---
 
-## Nessun reset automatico
-C'era un reset giornaliero lato client (svuotava la lista alla prima
-apertura dell'app dopo mezzanotte), rimosso: cancellava tutta la lista
-ogni notte anche nei giorni in cui la famiglia non era andata a fare la
-spesa, con solo un salvataggio di backup mai esposto in UI. Oggi un
-prodotto resta in lista finché non viene comprato (esce da solo, tramite
-`fineSpesa`) o cancellato apposta con lo swipe — che mostra anche da
-quando il prodotto è in lista ("Oggi" / "Ieri" / data), tramite
-`etichettaGiornoAggiunta()` in `lista.js`.
+## No automatic reset
+There used to be a client-side daily reset (cleared the list on first app
+open after midnight), now removed: it wiped the whole list every night even
+on days the family hadn't gone shopping, with only a backup save never
+exposed in the UI. Today a product stays on the list until it's bought
+(removed automatically via `fineSpesa`) or deliberately deleted with a
+swipe — which also shows since when the product has been on the list
+("Today" / "Yesterday" / date), via `etichettaGiornoAggiunta()` in
+`lista.js`.
 
 ---
 
 ## Deployment
 
-### Sviluppo locale
+### Local development
 ```
 UI → python -m http.server 3456 --directory source/
 ```
-Supabase è sempre lo stesso progetto in cloud: non esiste un "ambiente
-locale" separato per il backend.
+Supabase is always the same cloud project: there's no separate "local
+environment" for the backend.
 
-### Produzione
+### Production
 ```
-UI       → Netlify (drag & drop di source/)
-Supabase → progetto cloud già attivo (nessun deploy da fare)
+UI       → Netlify (drag & drop of source/)
+Supabase → already-active cloud project (nothing to deploy)
 ```
 
 ---
 
-## Storia: il piano originale (Flask + MySQL)
+## History: the original plan (Flask + MySQL)
 
-Il progetto era partito con un'architettura a tre livelli — UI, backend
-Flask con REST API, database MySQL — con schema tabelle ed endpoint già
-disegnati. Non è mai stato costruito: si è deciso di usare Supabase, che
-copre database e sincronizzazione realtime senza dover scrivere e ospitare
-un backend proprio. Si potrebbe tornare su Flask+MySQL in futuro per
-smettere di dipendere da un servizio terzo, ma richiederebbe di riscrivere
-da zero la sincronizzazione realtime oggi gratuita — al momento non è
-un problema che l'app abbia, quindi si resta su Supabase.
+The project originally started with a three-layer architecture — UI, Flask
+backend with a REST API, MySQL database — with table schemas and endpoints
+already designed. It was never built: the decision was made to use
+Supabase instead, which covers the database and realtime sync without
+having to write and host a custom backend. It might be worth going back to
+Flask+MySQL in the future to stop depending on a third-party service, but
+that would mean rewriting from scratch the realtime sync that's currently
+free — that's not a problem the app has right now, so it stays on
+Supabase.
