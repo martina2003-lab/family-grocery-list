@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="it" data-tema="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Spesa Famiglia">
+  <meta name="theme-color" content="#16254a">
+  <title>Spesa Famiglia</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tillana:wght@400;500;600;700;800&family=Quicksand:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=109">
+  <script>
+    // iOS in standalone riporta un'altezza viewport "vecchia" all'avvio: 100dvh
+    // risulta più corto dello schermo reale e resta la fascia in fondo. Ruotando lo
+    // schermo iOS ricalcola e si sistema. Qui forziamo noi lo stesso ricalcolo:
+    // misuriamo l'altezza reale (innerHeight) e la scriviamo in --app-height, che il
+    // CSS usa al posto di 100dvh. La rimisuriamo dopo che iOS si è stabilizzato.
+    function setAppHeight() {
+      document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+    }
+    setAppHeight();
+    // Ripetute dopo l'avvio: iOS dà il valore corretto solo dopo l'animazione di lancio
+    window.addEventListener('load', () => {
+      setAppHeight();
+      [100, 300, 600, 1000].forEach(t => setTimeout(setAppHeight, t));
+    });
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('pageshow', setAppHeight);
+    window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 300));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+  </script>
+</head>
+<body>
+
+<!-- ── Overlay selezione membro ─────────────────────────────── -->
+<div id="overlay-membro" class="hidden">
+  <h2>👋 Chi sei?</h2>
+  <p>Seleziona il tuo profilo per iniziare</p>
+  <div id="grid-membri"></div>
+</div>
+
+<!-- ── App ──────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Header -->
+  <header id="header">
+    <h1>🛒 Tigre</h1>
+    <img id="header-fidjet" src="/img/header-widget/spiderman.png" alt="">
+    <div id="header-actions">
+      <div id="header-membro-avatar" onclick="renderSelezioneMembroAvvio()">
+        <span id="header-membro-emoji">👴</span>
+        <span id="header-membro-nome">Elastigirl</span>
+      </div>
+      <button id="btn-tema" onclick="toggleTema()" aria-label="Cambia tema">🌙</button>
+    </div>
+  </header>
+
+  <!-- ── SCHERMATA LISTA ──────────────────────────────────── -->
+  <div id="schermata-lista" class="schermata attiva">
+
+
+    <!-- Banner "sta a fa la spesa" -->
+    <div id="banner-spesa" class="hidden">
+      <span id="banner-spesa-emoji"></span>
+      <span id="banner-spesa-testo"></span>
+      <div id="banner-spesa-azioni" class="hidden">
+        <button class="banner-btn fine" onclick="fineSpesa()">Fine</button>
+        <button class="banner-btn annulla" onclick="annullaSpesa()">✕</button>
+      </div>
+    </div>
+
+    <!-- Titolo lista con bottoni ai lati -->
+    <div class="lista-titolo-row">
+      <button id="fab-spesa" onclick="vadoAFaLaSpesa()" aria-label="Vado a fa la spesa">
+        <img src="/img/go-shopping-icon/icon.png?v=2" alt="Spesa">
+      </button>
+      <div class="lista-titolo-card">Lista Spesa</div>
+      <button id="fab" onclick="apriModalAggiungi()" aria-label="Aggiungi prodotto">
+        <img src="/img/add-product-icon/bag.png?v=2" alt="Aggiungi">
+      </button>
+    </div>
+
+    <!-- Lista prodotti -->
+    <div id="lista-prodotti"></div>
+  </div>
+
+  <!-- ── SCHERMATA PREFERITI ─────────────────────────────── -->
+  <div id="schermata-preferiti" class="schermata">
+    <div class="preferiti-header">
+      <h2>⭐ Preferiti</h2>
+      <button class="btn-aggiungi-tutti" onclick="aggiungiTuttiPreferiti()">+ Aggiungi tutti</button>
+    </div>
+    <div id="preferiti-lista"></div>
+  </div>
+
+  <!-- ── SCHERMATA DASHBOARD ─────────────────────────────── -->
+  <div id="schermata-dashboard" class="schermata">
+
+    <div class="periodo-bar">
+      <button class="periodo-btn attivo" data-periodo="settimana" onclick="setPeriodo('settimana')">Settimana</button>
+      <button class="periodo-btn" data-periodo="mese"       onclick="setPeriodo('mese')">Mese</button>
+      <button class="periodo-btn" data-periodo="anno"       onclick="setPeriodo('anno')">Anno</button>
+    </div>
+
+    <!-- Podio spese compiute -->
+    <div class="dash-sezione">
+      <div id="spese-podio"></div>
+    </div>
+
+    <!-- Torta categorie -->
+    <div class="dash-sezione">
+      <h3>🗂️ Categorie</h3>
+      <div id="torta-categorie"></div>
+    </div>
+
+
+
+    <!-- Top prodotti -->
+    <div class="dash-sezione">
+      <h3>🏆 Prodotti più acquistati</h3>
+      <div id="top-prodotti"></div>
+    </div>
+
+  </div>
+
+  <!-- ── SCHERMATA PROFILO ──────────────────────────────── -->
+  <div id="schermata-profilo" class="schermata">
+    <div class="profilo-avatar-wrap" id="profilo-avatar-wrap"></div>
+    <div class="profilo-saluto-row">
+      <span class="profilo-saluto" id="profilo-saluto"></span>
+      <input id="profilo-input-nome" class="profilo-input-inline hidden" type="text" maxlength="20">
+      <button class="profilo-conferma-btn hidden" id="profilo-conferma-btn" onclick="salvaNomeProfilo()" aria-label="Conferma nome">✓</button>
+      <button class="profilo-matita-btn" id="profilo-matita-btn" onclick="apriModificaNomeProfilo()" aria-label="Modifica nome">✏️</button>
+    </div>
+    <div class="profilo-sezione" id="profilo-stats"></div>
+    <div class="profilo-sezione">
+      <button class="profilo-label profilo-accordion-btn" id="profilo-storyboard-toggle" onclick="toggleStoryboardProfilo()">
+        📅 Spese questa settimana
+        <span class="profilo-accordion-freccia" id="profilo-storyboard-freccia">▾</span>
+      </button>
+      <div id="profilo-storyboard" class="profilo-storyboard-contenuto hidden"></div>
+    </div>
+    <div class="profilo-sezione profilo-sezione-admin hidden" id="profilo-sezione-admin">
+      <label class="profilo-label">⚠️ Zona amministratore</label>
+      <p class="profilo-admin-desc">Azzera lista, statistiche, grafici e storico spese di tutta la famiglia. I prodotti preferiti e le foto/nomi profilo non vengono toccati.</p>
+      <button class="profilo-admin-btn" onclick="apriConfermaAzzeramento()">🗑️ Azzera tutto lo storico</button>
+    </div>
+  </div>
+
+  <!-- ── Modal conferma azzeramento (solo admin) ─────────────────── -->
+  <div id="modal-conferma-reset" class="modal-overlay hidden" onclick="if(event.target===this)chiudiConfermaAzzeramento()">
+    <div class="modal-box modal-confirm-box">
+      <div class="modal-confirm-icona">⚠️</div>
+      <h2 class="modal-confirm-titolo">Sei sicuro/a?</h2>
+      <p class="modal-confirm-testo">Questa azione cancella per sempre la lista della spesa, lo storico, le statistiche e i grafici di tutta la famiglia. Non si può annullare.</p>
+      <div class="modal-confirm-azioni">
+        <button class="modal-confirm-btn annulla" onclick="chiudiConfermaAzzeramento()" aria-label="Annulla">✕</button>
+        <button class="modal-confirm-btn conferma distruttivo" onclick="confermaAzzeramentoTotale()" aria-label="Conferma">✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal conferma subentro spesa ────────────────────────────── -->
+  <div id="modal-conferma-subentro" class="modal-overlay hidden" onclick="if(event.target===this)chiudiConfermaSubentro()">
+    <div class="modal-box modal-confirm-box">
+      <div class="modal-confirm-icona">🛒</div>
+      <h2 class="modal-confirm-titolo">Prendere il suo posto?</h2>
+      <p class="modal-confirm-testo" id="modal-subentro-testo"></p>
+      <div class="modal-confirm-azioni">
+        <button class="modal-confirm-btn annulla" onclick="chiudiConfermaSubentro()" aria-label="Annulla">✕</button>
+        <button class="modal-confirm-btn conferma" onclick="confermaSubentroSpesa()" aria-label="Conferma">✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FAB ─────────────────────────────────────────────── -->
+
+  <!-- ── Nav Bar ──────────────────────────────────────────── -->
+  <nav id="nav-bar">
+    <button class="nav-btn attivo" data-schermata="lista"     onclick="navigaA('lista')">
+      <img class="nav-icon-img" src="/img/bottom-nav-icons/snoopy-list.png" alt="">Lista
+    </button>
+    <button class="nav-btn" data-schermata="preferiti"  onclick="navigaA('preferiti')">
+      <img class="nav-icon-img" src="/img/bottom-nav-icons/snoopy-favorites.png" alt="">Preferiti
+    </button>
+    <button class="nav-btn" data-schermata="dashboard"  onclick="navigaA('dashboard')">
+      <img class="nav-icon-img" src="/img/bottom-nav-icons/snoopy-charts.png" alt="">Grafici
+    </button>
+    <button class="nav-btn" data-schermata="profilo"   onclick="navigaA('profilo')">
+      <img class="nav-icon-img" src="/img/bottom-nav-icons/snoopy-profile.png" alt="">Profilo
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- ── Modal Aggiungi Prodotto ──────────────────────────────── -->
+<div id="modal-aggiungi" class="modal-overlay hidden" onclick="if(event.target===this)chiudiModalAggiungi()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>➕ Aggiungi prodotto</h2>
+      <button class="modal-chiudi" onclick="chiudiModalAggiungi()">✕</button>
+    </div>
+    <form id="form-aggiungi" autocomplete="off">
+
+      <div class="campo">
+        <label for="input-nome">Nome prodotto</label>
+        <div class="nome-qty-row">
+          <div class="autocomplete-wrap">
+            <input id="input-nome" type="text" placeholder="es. Latte, Pane, Pomodori..." autocomplete="off">
+            <div id="autocomplete-dropdown" class="autocomplete-lista hidden"></div>
+          </div>
+          <div class="qty-wrap">
+            <button type="button" class="qty-freccia qty-su" id="qty-su" aria-label="Aumenta quantità">▲</button>
+            <button type="button" class="qty-chip" id="qty-chip" aria-label="Quantità">1</button>
+            <button type="button" class="qty-freccia qty-giu" id="qty-giu" aria-label="Diminuisci quantità">▼</button>
+            <div class="qty-picker hidden" id="qty-picker">
+              <button type="button" class="qty-btn attivo" data-val="1">1</button>
+              <button type="button" class="qty-btn" data-val="2">2</button>
+              <button type="button" class="qty-btn" data-val="3">3</button>
+              <button type="button" class="qty-btn" data-val="4">4</button>
+              <button type="button" class="qty-btn" data-val="5">5</button>
+              <button type="button" class="qty-btn" data-val="6">6</button>
+              <button type="button" class="qty-btn" data-val="7">7</button>
+              <button type="button" class="qty-btn" data-val="8">8</button>
+              <button type="button" class="qty-btn" data-val="9">9</button>
+              <button type="button" class="qty-btn" data-val="10">10</button>
+            </div>
+          </div>
+          <button type="button" id="btn-aggiungi-prov" class="btn-aggiungi-prov" aria-label="Aggiungi prodotto">➕</button>
+          <input type="hidden" id="input-qty" value="1">
+        </div>
+      </div>
+
+      <!-- Lista provvisoria -->
+      <div id="lista-provvisoria" class="lista-provvisoria hidden"></div>
+
+
+      <button type="submit" class="btn-form">FINE</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Modal ritaglia foto profilo ──────────────────────────────── -->
+<div id="modal-crop-foto" class="modal-overlay hidden" onclick="if(event.target===this)chiudiModalCrop()">
+  <div class="modal-box modal-crop-box">
+    <h2 class="modal-crop-titolo">Sposta e ingrandisci</h2>
+    <div class="crop-area" id="crop-area">
+      <img id="crop-img" src="" alt="" draggable="false">
+      <div class="crop-cerchio"></div>
+    </div>
+    <input type="range" id="crop-zoom" class="crop-zoom-slider" min="1" max="3" step="0.01" value="1">
+    <div class="crop-azioni">
+      <button class="crop-btn annulla" onclick="chiudiModalCrop()">Annulla</button>
+      <button class="crop-btn conferma" onclick="confermaCropFoto()">Usa foto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Schermata Fine Spesa ──────────────────────────────────── -->
+<div id="overlay-fine-spesa" class="hidden">
+  <img id="fine-spesa-img" src="/img/end-of-shopping/armadillo.png" alt="">
+  <div id="fine-spesa-azioni">
+    <button id="fine-spesa-annulla" onclick="annullaFineSpesa()">✕</button>
+    <button id="fine-spesa-conferma" onclick="confermaFineSpesa()">✓</button>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Scripts ───────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/categorie.js?v=4"></script>
+<script src="js/product-icons.js?v=1"></script>
+<script src="js/config.js"></script>
+<script src="js/storage.js?v=11"></script>
+<script src="js/famiglia.js?v=12"></script>
+<script src="js/init-immagini.js?v=2"></script>
+<script src="js/lista.js?v=35"></script>
+<script src="js/preferiti.js?v=4"></script>
+<script src="js/dashboard.js?v=15"></script>
+<script src="js/app.js?v=53"></script>
+
+
+</body>
+</html>

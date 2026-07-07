@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Test — Spesa Famiglia</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; }
+  #riepilogo { font-size: 1.05rem; font-weight: 700; margin: 12px 0 20px; padding: 12px 16px; border-radius: 10px; }
+  #riepilogo.ok  { background: rgba(52,211,153,0.15); color: #34d399; }
+  #riepilogo.ko  { background: rgba(248,113,113,0.15); color: #f87171; }
+  .gruppo { margin-bottom: 18px; }
+  .gruppo h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-bottom: 6px; }
+  .riga { display: flex; gap: 10px; align-items: flex-start; padding: 7px 10px; border-radius: 8px; font-size: 0.92rem; }
+  .riga.pass { color: #a7f3d0; }
+  .riga.fail { background: rgba(248,113,113,0.1); color: #fca5a5; }
+  .segno { flex-shrink: 0; font-weight: 800; }
+  .errore { display: block; font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+  button { background: #0ea5e9; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 0.9rem; cursor: pointer; margin-bottom: 16px; }
+  button:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Test locali — Spesa Famiglia</h1>
+<p style="color:#94a3b8;font-size:0.85rem">Girano su dati finti in memoria. Non toccano Supabase né la lista vera della famiglia.</p>
+<button onclick="eseguiTutti()">▶ Rilancia i test</button>
+<div id="riepilogo"></div>
+<div id="risultati"></div>
+
+<!-- Mock di Storage: stessa identica interfaccia del vero storage.js, ma in RAM.
+     Così lista.js/preferiti.js/famiglia.js girano invariati e i test sono ripetibili,
+     senza mai scrivere su Supabase.
+     I "prodotti" hanno un mock dedicato (_prodottiMem, una riga per id) che rispecchia
+     la tabella "prodotti" reale, cosi' i test coprono anche la logica riga-per-riga. -->
+<script>
+  let _mem = {};
+  let _prodottiMem = new Map(); // id -> riga, come la vera tabella "prodotti"
+  window.Storage = {
+    get(key, fallback = null) {
+      return Object.prototype.hasOwnProperty.call(_mem, key) ? JSON.parse(JSON.stringify(_mem[key])) : fallback;
+    },
+    set(key, value) { _mem[key] = JSON.parse(JSON.stringify(value)); },
+
+    getLista: () => [..._prodottiMem.values()].map(r => JSON.parse(JSON.stringify(r))),
+
+    async inserisciProdotto(p) { _prodottiMem.set(p.id, { ...p }); },
+    async aggiornaProdotto(id, campi) {
+      const r = _prodottiMem.get(id);
+      if (r) Object.assign(r, campi);
+    },
+    async eliminaProdottoRemoto(id) { _prodottiMem.delete(id); },
+    async setLista(v) {
+      Storage._setListaChiamate++; // usato dai test per verificare che le
+      // operazioni quotidiane (fineSpesa compresa) NON riscrivano mai in
+      // blocco: setLista è riservata solo alle operazioni eccezionali
+      // (svuota, ripristina, azzeramento, annulla spesa).
+      const idsAttuali = v.map(p => p.id);
+      for (const id of [..._prodottiMem.keys()]) if (!idsAttuali.includes(id)) _prodottiMem.delete(id);
+      v.forEach(p => _prodottiMem.set(p.id, { ...p }));
+    },
+    _setListaChiamate: 0,
+    // Legge la riga "cosi' com'e' sul server", bypassando la copia locale in
+    // `lista`: serve a verificare che una modifica concorrente non venga
+    // sovrascritta da un aggiornamento in blocco.
+    _rigaProdotto: (id) => { const r = _prodottiMem.get(id); return r ? { ...r } : null; },
+
+    getPreferiti: () => Storage.get('preferiti_' + Storage.getMembroAttivo(), []),
+    setPreferiti: (v) => Storage.set('preferiti_' + Storage.getMembroAttivo(), v),
+
+    getStorico:      () => Storage.get('storico', []),
+    setStorico:      (v) => Storage.set('storico', v),
+
+    getMembroAttivo: () => Storage.get('membroAttivo', 'Elastigirl'),
+    setMembroAttivo: (v) => Storage.set('membroAttivo', v),
+
+    getTema:         () => Storage.get('tema', 'dark'),
+    setTema:         (v) => Storage.set('tema', v),
+
+    _reset() { _mem = {}; _prodottiMem = new Map(); Storage._setListaChiamate = 0; },
+  };
+</script>
+
+<!-- Codice reale dell'app: le stesse funzioni usate in produzione. Il ?v= è
+     per rompere la cache del browser — senza, un aggiornamento a lista.js può
+     restare invisibile ai test finché non si svuota la cache a mano. -->
+<script src="../source/js/categorie.js?v=1"></script>
+<script src="../source/js/famiglia.js?v=1"></script>
+<script src="../source/js/lista.js?v=5"></script>
+<script src="../source/js/preferiti.js?v=1"></script>
+<script src="../source/js/dashboard.js?v=1"></script>
+
+<script>
+  // ── Mini framework di test ────────────────────────────────────
+  const _gruppi = [];
+  let _gruppoCorrente = null;
+  function gruppo(nome, fn) { _gruppoCorrente = { nome, test: [] }; _gruppi.push(_gruppoCorrente); fn(); }
+  function test(nome, fn) { _gruppoCorrente.test.push({ nome, fn }); }
+
+  function assertEqual(attuale, atteso, msg) {
+    const a = JSON.stringify(attuale), e = JSON.stringify(atteso);
+    if (a !== e) throw new Error(`${msg ? msg + ' — ' : ''}atteso ${e}, ottenuto ${a}`);
+  }
+  function assertVero(cond, msg) { if (!cond) throw new Error(msg || 'atteso un valore vero'); }
+  function assertFalso(cond, msg) { if (cond) throw new Error(msg || 'atteso un valore falso'); }
+
+  // Intercetta document.getElementById(id) per catturare l'HTML che una
+  // funzione di render scriverebbe in quel container, senza bisogno che il
+  // container esista davvero in questa pagina di test.
+  function catturaRenderIn(id, renderFn) {
+    let html = '';
+    const finto = { classList: { add(){}, remove(){}, toggle(){} } };
+    Object.defineProperty(finto, 'innerHTML', {
+      get() { return html; }, set(v) { html = v; }, configurable: true,
+    });
+    const originale = document.getElementById;
+    try {
+      document.getElementById = (elId) => elId === id ? finto : originale.call(document, elId);
+      renderFn();
+    } finally {
+      document.getElementById = originale;
+    }
+    return html;
+  }
+
+  // ── Test: riconoscimento categorie ────────────────────────────
+  gruppo('Categorie', () => {
+    test('riconosce "mela" come frutta', () => {
+      assertEqual(riconosciCategoria('mela'), 'frutta');
+    });
+    test('riconosce "Latte Intero" (maiuscole/spazi) come latticini', () => {
+      assertEqual(riconosciCategoria('Latte Intero'), 'latticini');
+    });
+    test('prodotto sconosciuto → nessuna categoria', () => {
+      assertEqual(riconosciCategoria('xyzqwerty123'), null);
+    });
+    test('getCategoriaById(null) ritorna categoria di fallback', () => {
+      assertEqual(getCategoriaById(null).id, null);
+    });
+    test('getCategoriaById con id valido ritorna la categoria giusta', () => {
+      assertEqual(getCategoriaById('frutta').nome, 'Frutta & Verdura');
+    });
+  });
+
+  // ── Test: sicurezza (nomi con codice HTML non devono eseguirsi) ─
+  gruppo('Sicurezza — escape HTML', () => {
+    test('escapeHtml neutralizza tag ed eventi HTML', () => {
+      const pericoloso = '<img src=x onerror=alert(1)>';
+      const sicuro = escapeHtml(pericoloso);
+      assertFalso(sicuro.includes('<img'), 'il tag non deve restare aperto');
+      assertVero(sicuro.includes('&lt;img'), 'deve diventare testo visualizzabile');
+    });
+    test('un nome prodotto con HTML viene mostrato come testo, non eseguito', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      const fintoContainer = { classList: { add(){}, remove(){}, toggle(){} } };
+      let htmlCatturato = '';
+      Object.defineProperty(fintoContainer, 'innerHTML', {
+        get() { return htmlCatturato; }, set(v) { htmlCatturato = v; }, configurable: true,
+      });
+      const originale = document.getElementById;
+      // try/finally: se aggiungiProdotto lancia un errore, il ripristino avviene comunque
+      // e non "contamina" i test successivi con un document.getElementById modificato.
+      try {
+        document.getElementById = (id) => id === 'lista-prodotti' ? fintoContainer : originale.call(document, id);
+        aggiungiProdotto({ nome: '<img src=x onerror=alert(1)>' });
+      } finally {
+        document.getElementById = originale;
+      }
+      assertFalso(htmlCatturato.includes('<img src=x'), 'il payload non deve comparire come tag eseguibile');
+    });
+  });
+
+  // ── Test: lista della spesa ────────────────────────────────────
+  gruppo('Lista della spesa', () => {
+    test('aggiungiProdotto inserisce il prodotto in cima alla lista', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      aggiungiProdotto({ nome: 'Pane' });
+      assertEqual(lista.length, 1);
+      assertEqual(lista[0].nome, 'Pane');
+      assertEqual(lista[0].aggiuntoDa, 'Elastigirl');
+    });
+    test('aggiungiProdotto con nome vuoto non aggiunge nulla', () => {
+      lista = [];
+      const r = aggiungiProdotto({ nome: '   ' });
+      assertEqual(r, null);
+      assertEqual(lista.length, 0);
+    });
+    test('eliminaProdotto rimuove solo se l\'ha aggiunto l\'utente attivo', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      const p = aggiungiProdotto({ nome: 'Latte' });
+      Storage.setMembroAttivo('MrIncredibile');
+      eliminaProdotto(p.id);
+      assertEqual(lista.length, 1, 'MrIncredibile non deve poter eliminare un prodotto di Elastigirl');
+      Storage.setMembroAttivo('Elastigirl');
+      eliminaProdotto(p.id);
+      assertEqual(lista.length, 0, 'Elastigirl deve poter eliminare il proprio prodotto');
+    });
+    test('spuntaProdotto non fa nulla se nessuno sta facendo la spesa', () => {
+      lista = [];
+      Storage.set('chiStaFacendoLaSpesa', null);
+      const p = aggiungiProdotto({ nome: 'Uova' });
+      spuntaProdotto(p.id);
+      assertFalso(lista[0].spuntato, 'senza spesa attiva non si può spuntare');
+    });
+    test('spuntaProdotto funziona solo per chi sta facendo la spesa', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      const p = aggiungiProdotto({ nome: 'Burro' });
+      aggiungiProdotto({ nome: 'Pane' }); // secondo prodotto: evita che spuntare Burro chiuda subito la spesa
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'MrIncredibile' });
+      spuntaProdotto(p.id);
+      assertFalso(lista.find(x => x.id === p.id).spuntato, 'Elastigirl non può spuntare se sta facendo la spesa MrIncredibile');
+      Storage.setMembroAttivo('MrIncredibile');
+      spuntaProdotto(p.id);
+      assertVero(lista.find(x => x.id === p.id).spuntato, 'MrIncredibile deve poter spuntare la propria spesa');
+    });
+    test('quando tutti i prodotti sono spuntati la spesa si chiude', () => {
+      lista = [];
+      Storage.setMembroAttivo('Dash');
+      aggiungiProdotto({ nome: 'Mele' });
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Dash' });
+      spuntaProdotto(lista[0].id);
+      assertEqual(lista.length, 0, 'la lista si svuota a fine spesa');
+      assertEqual(Storage.get('chiStaFacendoLaSpesa', 'x'), null);
+      // Le statistiche NON sono ancora scritte: le scrive solo la conferma
+      // con ✓ nell'overlay (vedi gruppo "Fine spesa" qui sotto).
+      assertEqual(Storage.get('speseFatte', {})['Dash'], undefined, 'la spesa non va contata prima della conferma');
+      assertEqual(Storage.get('storicoSpese', []).length, 0);
+    });
+    test('due prodotti aggiunti "in concorrenza" da persone diverse sopravvivono entrambi', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      aggiungiProdotto({ nome: 'Pane' });
+      lista = []; // simula il dispositivo di MrIncredibile, che non ha ancora ricevuto "Pane"
+      Storage.setMembroAttivo('MrIncredibile');
+      aggiungiProdotto({ nome: 'Latte' });
+      assertEqual(Storage.getLista().length, 2, 'entrambi i prodotti devono restare, nessuno sovrascritto');
+    });
+  });
+
+  // ── Test: fine spesa — conferma, annullo e conteggi ───────────
+  gruppo('Fine spesa — conferma e annullo', () => {
+    test('fineSpesa marca i non spuntati come "non acquistato"', () => {
+      lista = [];
+      Storage.setMembroAttivo('Violet');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Violet' });
+      const preso = aggiungiProdotto({ nome: 'Pane' });
+      aggiungiProdotto({ nome: 'Latte' });
+      spuntaProdotto(preso.id);
+      fineSpesa();
+      assertEqual(lista.length, 1, 'resta solo il prodotto non trovato');
+      assertEqual(lista[0].nome, 'Latte');
+      assertVero(lista[0].nonAcquistato, 'il prodotto non trovato è marcato "non acquistato"');
+      assertEqual(Storage.get('chiStaFacendoLaSpesa', 'x'), null);
+    });
+    test('fineSpesa passa nome+categoria+quantità dei prodotti spuntati (non solo il nome)', () => {
+      // app.js non è caricato in questa suite: si finge mostraOverlayFineSpesa
+      // per catturare lo snapshot che fineSpesa le passerebbe davvero.
+      lista = [];
+      Storage.setMembroAttivo('Violet');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Violet' });
+      aggiungiProdotto({ nome: 'Mele', quantita: 4, categoria: 'frutta' });
+
+      let catturato = null;
+      const originale = window.mostraOverlayFineSpesa;
+      window.mostraOverlayFineSpesa = (snap) => { catturato = snap; };
+      try {
+        spuntaProdotto(lista[0].id); // unico prodotto: completa la spesa da sola
+      } finally {
+        window.mostraOverlayFineSpesa = originale;
+      }
+
+      assertVero(catturato && Array.isArray(catturato.spuntati), 'lo snapshot deve avere un array spuntati');
+      assertEqual(catturato.spuntati[0], { nome: 'Mele', categoria: 'frutta', quantita: 4 },
+        'i grafici hanno bisogno di categoria e quantità, non solo del nome');
+    });
+    test('la spesa viene contata solo alla conferma (registraSpesaCompletata)', () => {
+      registraSpesaCompletata({ nome: 'Dash' }, ['Mele', 'Pane']);
+      assertEqual(Storage.get('speseFatte', {})['Dash'], 1);
+      const log = Storage.get('storicoSpese', []);
+      assertEqual(log.length, 1);
+      assertEqual(log[0].prodotti, ['Mele', 'Pane']);
+    });
+    test('senza prodotti spuntati la spesa non conta (come un annullo)', () => {
+      registraSpesaCompletata({ nome: 'Dash' }, []);
+      assertEqual(Storage.get('speseFatte', {})['Dash'], undefined);
+      assertEqual(Storage.get('storicoSpese', []).length, 0);
+    });
+    test('annullare (✕) e rifare la spesa la conta UNA volta sola', () => {
+      lista = [];
+      Storage.setMembroAttivo('Pluto');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Pluto' });
+      aggiungiProdotto({ nome: 'Uova' });
+      spuntaProdotto(lista[0].id); // completa la spesa → overlay di conferma
+      // ✕ annulla: nessun conteggio è stato scritto, niente da disfare
+      assertEqual(Storage.get('speseFatte', {})['Pluto'], undefined, 'prima della conferma il contatore deve essere vuoto');
+      // la spesa riparte, si completa di nuovo e stavolta si conferma con ✓
+      registraSpesaCompletata({ nome: 'Pluto' }, ['Uova']);
+      assertEqual(Storage.get('speseFatte', {})['Pluto'], 1, 'una sola spesa contata, non due');
+      assertEqual(Storage.get('storicoSpese', []).length, 1);
+    });
+    test('dataLocaleISO usa il fuso orario locale, non UTC', () => {
+      const d = new Date(2026, 0, 15, 0, 30); // 15 gennaio, 00:30 LOCALI
+      assertEqual(dataLocaleISO(d), '2026-01-15', 'a mezzanotte e mezza il giorno è già il 15, non ancora il 14');
+    });
+    test('fineSpesa non usa mai Storage.setLista (nessuna riscrittura in blocco)', () => {
+      lista = [];
+      Storage.setMembroAttivo('Violet');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Violet' });
+      aggiungiProdotto({ nome: 'Riso' });
+      const chiamatePrima = Storage._setListaChiamate;
+      fineSpesa();
+      assertEqual(Storage._setListaChiamate, chiamatePrima, 'fineSpesa non deve mai chiamare setLista');
+    });
+    test('fineSpesa non cancella una modifica concorrente su un prodotto rimasto in lista', () => {
+      lista = [];
+      Storage.setMembroAttivo('Dash');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Dash' });
+      const pane  = aggiungiProdotto({ nome: 'Pane', quantita: 1 });
+      const latte = aggiungiProdotto({ nome: 'Latte', quantita: 1 });
+      spuntaProdotto(latte.id); // Dash prende il latte, il pane resta da prendere
+
+      // Pluto, da un altro dispositivo, cambia la quantità del pane: la scrittura
+      // arriva al "server" (mock) ma il suo eco non è ancora arrivato sul
+      // telefono di Dash — la sua copia locale (`lista`) mostra ancora 1.
+      Storage.aggiornaProdotto(pane.id, { quantita: 5 });
+
+      fineSpesa();
+
+      const rigaServerPane = Storage._rigaProdotto(pane.id);
+      assertEqual(rigaServerPane.quantita, 5, 'fineSpesa non deve riportare la quantità del pane al valore vecchio di Dash');
+      assertEqual(Storage._rigaProdotto(latte.id), null, 'il latte spuntato va eliminato dal server');
+    });
+    test('controllaCompletamentoSpesa chiude la spesa solo sul dispositivo di chi la sta facendo', () => {
+      lista = [];
+      Storage.setMembroAttivo('Dash');
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Dash' });
+      const preso       = aggiungiProdotto({ nome: 'Mele' });
+      const daEliminare = aggiungiProdotto({ nome: 'Pere' });
+      spuntaProdotto(preso.id); // Dash ha già preso le mele, restano le pere
+
+      // Un dispositivo che sta solo guardando (non è Dash): l'eliminazione
+      // remota dell'ultima pera non deve chiudere la spesa di Dash.
+      Storage.setMembroAttivo('Pluto');
+      applicaEliminazioneProdotto(daEliminare.id);
+      assertVero(Storage.get('chiStaFacendoLaSpesa', null) !== null,
+        'da un dispositivo che non è lo shopper, la spesa non deve chiudersi');
+
+      // Sul dispositivo di Dash (lo shopper), la stessa sparizione chiude la spesa.
+      Storage.setMembroAttivo('Dash');
+      applicaEliminazioneProdotto(daEliminare.id); // idempotente: già non presente
+      assertEqual(Storage.get('chiStaFacendoLaSpesa', 'x'), null,
+        'sul dispositivo dello shopper, l\'ultimo prodotto rimasto che sparisce deve chiudere la spesa');
+    });
+  });
+
+  // ── Test: chi vede cosa mentre un altro fa la spesa ───────────
+  gruppo('Visibilità lista durante la spesa (chi sono io, non chi la fa)', () => {
+    const renderCatturato = () => catturaRenderIn('lista-prodotti', renderLista);
+
+    test('un altro sta facendo la spesa: io vedo comunque stella ed elimina, non i suoi cerchietti', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      aggiungiProdotto({ nome: 'Pere' });
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Dash' }); // Dash fa la spesa, non io
+      const html = renderCatturato();
+      assertVero(html.includes('stella-lista'), 'devo vedere la stella preferiti come al solito');
+      assertFalso(html.includes('spunta-btn'), 'non devo vedere il cerchietto di spunta di Dash');
+      assertVero(html.includes('swipe-actions'), 'devo poter ancora eliminare il mio prodotto');
+    });
+
+    test('sto facendo la spesa io: vedo i cerchietti, niente stella né elimina', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      aggiungiProdotto({ nome: 'Pere' });
+      Storage.set('chiStaFacendoLaSpesa', { nome: 'Elastigirl' }); // sono io lo shopper
+      const html = renderCatturato();
+      assertVero(html.includes('spunta-btn'), 'devo vedere il cerchietto di spunta');
+      assertFalso(html.includes('stella-lista'), 'niente stella preferiti mentre spunto');
+      assertFalso(html.includes('swipe-actions'), 'niente eliminazione mentre sto facendo la spesa io stesso');
+    });
+  });
+
+  // ── Test: etichetta data nello swipe (al posto del reset automatico) ──
+  gruppo('Etichetta "da quanto è in lista" nello swipe', () => {
+    test('etichettaGiornoAggiunta mostra "Oggi" per una data di oggi', () => {
+      assertEqual(etichettaGiornoAggiunta(new Date().toISOString()), 'Oggi');
+    });
+    test('etichettaGiornoAggiunta mostra "Ieri" per una data di ieri', () => {
+      const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      assertEqual(etichettaGiornoAggiunta(ieri), 'Ieri');
+    });
+    test('etichettaGiornoAggiunta mostra giorno/mese per date più vecchie', () => {
+      const vecchia = new Date(2026, 0, 15).toISOString(); // 15 gennaio 2026
+      assertEqual(etichettaGiornoAggiunta(vecchia), '15/1');
+    });
+    test('etichettaGiornoAggiunta non crasha con valori mancanti o non validi', () => {
+      assertEqual(etichettaGiornoAggiunta(null), '');
+      assertEqual(etichettaGiornoAggiunta(undefined), '');
+      assertEqual(etichettaGiornoAggiunta('non-una-data'), '');
+    });
+    test('un prodotto aggiunto oggi mostra "Oggi" nello swipe', () => {
+      lista = [];
+      Storage.setMembroAttivo('Elastigirl');
+      aggiungiProdotto({ nome: 'Pere' });
+      const html = catturaRenderIn('lista-prodotti', renderLista);
+      assertVero(html.includes('swipe-data'), 'lo swipe deve contenere l\'etichetta data');
+      assertVero(html.includes('>Oggi<'), 'un prodotto appena aggiunto deve mostrare "Oggi"');
+    });
+  });
+
+  // ── Test: dashboard — grafici basati su acquisti REALI ────────
+  gruppo('Dashboard — Podio/Torta/Top prodotti su spese confermate', () => {
+    test('getSpeseFiltrate esclude le spese fuori dal periodo selezionato', () => {
+      const backupPeriodo = periodoAttivo;
+      const recente = new Date().toISOString();
+      const vecchia = new Date(2020, 0, 1).toISOString();
+      Storage.set('storicoSpese', [
+        { chi: 'Dash', data: recente, prodotti: [] },
+        { chi: 'Dash', data: vecchia, prodotti: [] },
+      ]);
+      periodoAttivo = 'settimana';
+      assertEqual(getSpeseFiltrate().length, 1, 'solo la spesa recente deve restare per "settimana"');
+      periodoAttivo = 'anno';
+      assertEqual(getSpeseFiltrate().length, 1, 'la spesa del 2020 non deve entrare nell\'anno corrente');
+      periodoAttivo = backupPeriodo;
+    });
+
+    test('renderSpesePodio conta solo le spese confermate DENTRO il periodo, non un totale sempre-vissuto', () => {
+      const backupPeriodo = periodoAttivo;
+      const recente = new Date().toISOString();
+      const vecchia = new Date(2020, 0, 1).toISOString();
+      Storage.set('storicoSpese', [
+        { chi: 'MrIncredibile', data: recente, prodotti: [] },
+        { chi: 'JackJack', data: vecchia, prodotti: [] },
+        { chi: 'JackJack', data: vecchia, prodotti: [] },
+      ]);
+      periodoAttivo = 'settimana';
+      const html = catturaRenderIn('spese-podio', renderSpesePodio);
+      assertVero(html.includes('MrIncredibile'), 'MrIncredibile ha fatto una spesa recente: deve comparire nel podio della settimana');
+      assertFalso(html.includes('JackJack'), 'le spese di JackJack sono del 2020: non devono comparire nel podio della settimana');
+      periodoAttivo = backupPeriodo;
+    });
+
+    test('renderTopProdotti pesa per quantità, non conta ogni voce come 1', () => {
+      const backupPeriodo = periodoAttivo;
+      periodoAttivo = 'anno';
+      const oggi = new Date().toISOString();
+      Storage.set('storicoSpese', [
+        { chi: 'Dash', data: oggi, prodotti: [{ nome: 'Latte', categoria: 'latticini', quantita: 5 }] },
+        { chi: 'Dash', data: oggi, prodotti: [{ nome: 'Pane', categoria: 'pane', quantita: 1 }] },
+      ]);
+      const html = catturaRenderIn('top-prodotti', renderTopProdotti);
+      assertVero(html.includes('5x'), 'il latte comprato in quantità 5 deve pesare 5, non 1');
+      periodoAttivo = backupPeriodo;
+    });
+
+    test('renderTopProdotti funziona anche con voci vecchie (solo stringa) miste a quelle nuove', () => {
+      const backupPeriodo = periodoAttivo;
+      periodoAttivo = 'anno';
+      const oggi = new Date().toISOString();
+      Storage.set('storicoSpese', [
+        { chi: 'Dash', data: oggi, prodotti: ['Mela'] }, // voce vecchia: solo stringhe
+        { chi: 'Dash', data: oggi, prodotti: [{ nome: 'Mela', categoria: 'frutta', quantita: 2 }] },
+      ]);
+      const html = catturaRenderIn('top-prodotti', renderTopProdotti);
+      assertVero(html.includes('3x'), 'mela vecchia (peso 1) + mela nuova (peso 2) devono sommarsi a 3');
+      periodoAttivo = backupPeriodo;
+    });
+
+    test('renderTortaCategorie somma le quantità per categoria, non il numero di voci', () => {
+      const backupPeriodo = periodoAttivo;
+      periodoAttivo = 'anno';
+      const oggi = new Date().toISOString();
+      Storage.set('storicoSpese', [
+        { chi: 'Dash', data: oggi, prodotti: [{ nome: 'Mela', categoria: 'frutta', quantita: 3 }] },
+        { chi: 'Dash', data: oggi, prodotti: [{ nome: 'Pera', categoria: 'frutta', quantita: 2 }] },
+      ]);
+      const html = catturaRenderIn('torta-categorie', renderTortaCategorie);
+      assertVero(html.includes('>5</text>'), 'il totale al centro della ciambella deve essere 3+2=5, non 2 (il numero di voci)');
+      periodoAttivo = backupPeriodo;
+    });
+
+    test('normalizzaProdottoSpesa ricalcola la categoria per le voci vecchie (solo stringa)', () => {
+      const p = normalizzaProdottoSpesa('Mela');
+      assertEqual(p.nome, 'Mela');
+      assertEqual(p.categoria, 'frutta', 'la categoria deve essere ricalcolata con lo stesso dizionario usato all\'aggiunta');
+      assertEqual(p.quantita, 1, 'le voci vecchie non avevano la quantità: si assume 1');
+    });
+
+    test('normalizzaProdottoSpesa usa i dati già presenti per le voci nuove', () => {
+      const p = normalizzaProdottoSpesa({ nome: 'Latte', categoria: 'latticini', quantita: 4 });
+      assertEqual(p, { nome: 'Latte', categoria: 'latticini', quantita: 4 });
+    });
+  });
+
+  // ── Test: preferiti (indipendenti per ogni utente) ────────────
+  gruppo('Preferiti per utente', () => {
+    test('salvaPreferito aggiunge un prodotto ai preferiti', () => {
+      preferiti = [];
+      Storage.setMembroAttivo('Elastigirl');
+      Storage.setPreferiti([]);
+      salvaPreferito({ nome: 'Pane', quantita: 1, unita: 'pz', categoria: 'pane' });
+      assertEqual(Storage.getPreferiti().length, 1);
+    });
+    test('salvaPreferito non duplica lo stesso prodotto (case-insensitive)', () => {
+      preferiti = [];
+      Storage.setMembroAttivo('Elastigirl');
+      Storage.setPreferiti([]);
+      salvaPreferito({ nome: 'Latte' });
+      salvaPreferito({ nome: 'LATTE' });
+      assertEqual(Storage.getPreferiti().length, 1);
+    });
+    test('i preferiti di un utente sono invisibili ad un altro utente', () => {
+      Storage.setMembroAttivo('Elastigirl');
+      Storage.setPreferiti([{ id: '1', nome: 'Pane' }]);
+      Storage.setMembroAttivo('MrIncredibile');
+      Storage.setPreferiti([]);
+      assertEqual(Storage.getPreferiti().length, 0, 'MrIncredibile non deve vedere i preferiti di Elastigirl');
+      Storage.setMembroAttivo('Elastigirl');
+      assertEqual(Storage.getPreferiti().length, 1, 'Elastigirl deve ancora vedere il proprio preferito');
+    });
+    test('rimuoviPreferito toglie solo il prodotto scelto', () => {
+      Storage.setMembroAttivo('Violet');
+      Storage.setPreferiti([{ id: 'a', nome: 'Pane' }, { id: 'b', nome: 'Latte' }]);
+      preferiti = Storage.getPreferiti();
+      rimuoviPreferito('a');
+      const rimasti = Storage.getPreferiti();
+      assertEqual(rimasti.length, 1);
+      assertEqual(rimasti[0].id, 'b');
+    });
+    test('isPreferitoInLista riconosce un nome già salvato (case-insensitive)', () => {
+      Storage.setMembroAttivo('Pluto');
+      Storage.setPreferiti([{ id: 'a', nome: 'Pomodori' }]);
+      assertVero(isPreferitoInLista('pomodori'));
+      assertFalso(isPreferitoInLista('Cetrioli'));
+    });
+  });
+
+  // ── Test: famiglia ─────────────────────────────────────────────
+  gruppo('Famiglia', () => {
+    test('getMembroByNome trova il membro giusto', () => {
+      assertEqual(getMembroByNome('MrIncredibile').nome, 'MrIncredibile');
+    });
+    test('getMembroByNome con nome inesistente non va in errore (fallback)', () => {
+      assertEqual(getMembroByNome('NomeInventato').nome, MEMBRI[0].nome);
+    });
+    test('setDisplayNome / getDisplayNome salvano un nome personalizzato', () => {
+      setDisplayNome('Elastigirl', 'Nonno');
+      assertEqual(getDisplayNome('Elastigirl'), 'Nonno');
+    });
+    test('getDisplayNome senza nome custom ritorna il nome base', () => {
+      assertEqual(getDisplayNome('Dash'), 'Dash');
+    });
+  });
+
+  // ── Esecuzione e rendering ─────────────────────────────────────
+  async function eseguiTutti() {
+    let totali = 0, passati = 0;
+    const contenitore = document.getElementById('risultati');
+    contenitore.innerHTML = '';
+
+    for (const g of _gruppi) {
+      const div = document.createElement('div');
+      div.className = 'gruppo';
+      const h2 = document.createElement('h2');
+      h2.textContent = g.nome;
+      div.appendChild(h2);
+
+      for (const t of g.test) {
+        Storage._reset();
+        totali++;
+        const riga = document.createElement('div');
+        try {
+          await t.fn();
+          passati++;
+          riga.className = 'riga pass';
+          riga.innerHTML = `<span class="segno">✓</span><span>${t.nome}</span>`;
+        } catch (e) {
+          riga.className = 'riga fail';
+          riga.innerHTML = `<span class="segno">✗</span><span>${t.nome}<span class="errore">${e.message}</span></span>`;
+        }
+        div.appendChild(riga);
+      }
+      contenitore.appendChild(div);
+    }
+
+    const rip = document.getElementById('riepilogo');
+    rip.className = passati === totali ? 'ok' : 'ko';
+    rip.textContent = passati === totali
+      ? `✅ Tutti i test passati (${passati}/${totali})`
+      : `⚠️ ${totali - passati} test falliti su ${totali}`;
+  }
+
+  eseguiTutti();
+</script>
+
+</body>
+</html>
