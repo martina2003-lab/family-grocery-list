@@ -656,6 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Avvia connessione Supabase, poi inizializza l'app
   Storage.init().then(() => {
+        document.getElementById('demo-badge')?.classList.toggle('hidden', !Storage.demoMode);
     caricaLista();
     caricaPreferiti();
     aggiornaHeaderMembro();
