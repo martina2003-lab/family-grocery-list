@@ -37,11 +37,11 @@ async function inizializzaImmagini() {
 
   // ── Sfondi chiaro e scuro ────────────────────────────────────
   if (!Storage.get(SFONDO_CHIARO_KEY, null)) {
-    const b64 = await fetchToBase64('/img/backgrounds/light-mode/background.png');
+    const b64 = await fetchToBase64('img/backgrounds/light-mode/background.png');
     if (b64) Storage.set(SFONDO_CHIARO_KEY, b64);
   }
   if (!Storage.get(SFONDO_SCURO_KEY, null)) {
-    const b64 = await fetchToBase64('/img/backgrounds/dark-mode/background.jpg');
+    const b64 = await fetchToBase64('img/backgrounds/dark-mode/background.jpg');
     if (b64) Storage.set(SFONDO_SCURO_KEY, b64);
   }
 

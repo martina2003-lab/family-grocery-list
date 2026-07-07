@@ -1,5 +1,6 @@
-// SUPABASE_URL e SUPABASE_KEY arrivano da js/config.js (non incluso in git,
-// vedi js/config.example.js per il modello da copiare e compilare)
+// SUPABASE_URL e SUPABASE_KEY, se presenti, arrivano da js/config.js (non
+// incluso in git). Se il file manca, l'app parte in modalità demo standalone
+// (vedi init() qui sotto): nessun backend, dati solo nel browser.
 
 // Chiavi che restano solo sul dispositivo (non sincronizzate).
 // fotoCustom NON è qui: le foto profilo devono essere visibili a tutta la

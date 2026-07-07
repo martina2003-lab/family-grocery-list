@@ -88,7 +88,7 @@ function aggiornaBannerSpesa() {
 
     // Ricostruisci contenuto banner (prima dei bottoni azioni)
     banner.innerHTML = `
-      <img class="banner-anim" src="/img/go-shopping-icon/animation.webp" alt="">
+      <img class="banner-anim" src="img/go-shopping-icon/animation.webp" alt="">
       ${avatarHtml}
       <span id="banner-spesa-testo" class="banner-testo">sta a fa la spesa</span>
       <div id="banner-spesa-azioni" class="hidden">
@@ -563,7 +563,7 @@ function renderProvvisoria() {
         <span class="prov-nome">${escapeHtml(item.nome)}</span>
         <span class="prov-qty">×${item.qty}</span>
       </div>
-      <button type="button" class="prov-rimuovi" onclick="rimuoviDaProvvisoria(${i})"><img src="/img/trash-icon.svg" alt="Elimina" style="width:20px;height:20px;"></button>
+      <button type="button" class="prov-rimuovi" onclick="rimuoviDaProvvisoria(${i})"><img src="img/trash-icon.svg" alt="Elimina" style="width:20px;height:20px;"></button>
     </div>`).join('');
 }
 

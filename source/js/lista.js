@@ -213,7 +213,7 @@ function renderLista() {
   if (ordinati.length === 0) {
     container.innerHTML = `
       <div class="lista-vuota">
-        <img src="/img/empty-fridge/empty-fridge.png" alt="Frigo vuoto" class="lista-vuota-img">
+        <img src="img/empty-fridge/empty-fridge.png" alt="Frigo vuoto" class="lista-vuota-img">
         <p>La lista è vuota</p>
         <span>Aggiungi il primo prodotto!</span>
       </div>`;
@@ -237,7 +237,7 @@ function renderLista() {
         ${puoEliminare ? `
         <div class="swipe-actions">
           <button class="swipe-btn sw-elimina" onclick="swipeAzioneElimina('${p.id}')">
-            <img src="/img/trash-icon.svg" alt="Elimina" style="width:26px;height:26px;">
+            <img src="img/trash-icon.svg" alt="Elimina" style="width:26px;height:26px;">
             <span class="swipe-data">${etichettaGiornoAggiunta(p.dataAggiunta)}</span>
           </button>
         </div>` : ''}

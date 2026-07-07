@@ -4,12 +4,12 @@
 // su lista, preferiti o modifica prodotti — quella si basa su chi ha
 // aggiunto il prodotto, non sul ruolo admin).
 const MEMBRI = [
-  { nome: 'Elastigirl',      emoji: '👴', colore: '#fbbf24', admin: false, foto: '/img/user-avatars/Elastigirl.png'    },
-  { nome: 'Mr. Incredibile', emoji: '👦', colore: '#0ea5e9', admin: false, foto: '/img/user-avatars/MrIncredibile.png' },
-  { nome: 'Dash',            emoji: '👦', colore: '#34d399', admin: false, foto: '/img/user-avatars/Dash.png'          },
-  { nome: 'Violet',          emoji: '👩', colore: '#a78bfa', admin: false, foto: '/img/user-avatars/Violet.png'        },
-  { nome: 'Jack-Jack',       emoji: '👩', colore: '#f472b6', admin: true,  foto: '/img/user-avatars/JackJack.png'      },
-  { nome: 'Pluto',           emoji: '👧', colore: '#fb923c', admin: false, foto: '/img/user-avatars/Pluto.png'         },
+  { nome: 'Elastigirl',      emoji: '👴', colore: '#fbbf24', admin: false, foto: 'img/user-avatars/Elastigirl.png'    },
+  { nome: 'Mr. Incredibile', emoji: '👦', colore: '#0ea5e9', admin: false, foto: 'img/user-avatars/MrIncredibile.png' },
+  { nome: 'Dash',            emoji: '👦', colore: '#34d399', admin: false, foto: 'img/user-avatars/Dash.png'          },
+  { nome: 'Violet',          emoji: '👩', colore: '#a78bfa', admin: false, foto: 'img/user-avatars/Violet.png'        },
+  { nome: 'Jack-Jack',       emoji: '👩', colore: '#f472b6', admin: true,  foto: 'img/user-avatars/JackJack.png'      },
+  { nome: 'Pluto',           emoji: '👧', colore: '#fb923c', admin: false, foto: 'img/user-avatars/Pluto.png'         },
 ];
 
 function getMembroByNome(nome) {
