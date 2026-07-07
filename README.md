@@ -1,11 +1,18 @@
 # 🛒 Family Grocery List
 
+**Open it here:** https://martina2003-lab.github.io/family-grocery-list/
+
+Runs right in your browser — nothing to install, nothing to set up. Just
+open the link above. A few sample products are already in the list, and
+everything you change is saved only in your own browser (that's what the
+"DEMO" badge in the header means: nothing is sent anywhere).
+
 A grocery list app for family use: everyone shares the same list in real
 time, each with their own profile.
 
-This is a **demo version** of the project: same code as the app used daily,
-with names and avatars replaced by fictional characters so no real data is
-exposed.
+This repository is a **public showcase** of the project: same code as the
+app used daily by a real family, with names and avatars replaced by
+fictional characters so no real data is exposed.
 
 ## Features
 
@@ -26,36 +33,6 @@ exposed.
 
 Architecture details in [`doc/design.md`](doc/design.md), full requirements
 in [`doc/requisiti.md`](doc/requisiti.md).
-
-## Running the project locally
-
-### Quick look — local demo mode (no setup needed)
-
-If `source/js/config.js` is missing, the app automatically starts in local
-demo mode: no Supabase connection, a few sample products already in the
-list, everything saved only in this browser's `localStorage` (a small
-"DEMO" badge appears in the header as a reminder). Just:
-
-```bash
-python -m http.server 3456 --directory source/
-```
-
-and open `http://localhost:3456` — that's it.
-
-### Full setup — connect your own Supabase project
-
-1. Create a project on [Supabase](https://supabase.com) with the `stato`
-   (key/value) and `prodotti` tables (see `doc/design.md` for the schema)
-2. Copy `source/js/config.example.js` to `source/js/config.js` and fill in
-   your Supabase project URL and public key
-3. Start a static server from the `source/` folder:
-   ```bash
-   python -m http.server 3456 --directory source/
-   ```
-4. Open `http://localhost:3456`
-
-`source/js/config.js` is not included in the repository (see `.gitignore`):
-anyone running it locally uses their own credentials.
 
 ## Folder structure
 
