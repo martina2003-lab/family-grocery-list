@@ -1,76 +1,80 @@
-# App Spesa Famiglia — CLAUDE.md
+# Family Grocery List — CLAUDE.md
 
-## Contesto del Progetto
-App di gestione lista della spesa per uso familiare. Sviluppata per la famiglia
-composta da Elastigirl, MrIncredibile, Dash, Violet, JackJack, Pluto. Supermercato di
-riferimento: Tigre (Roma). Hanno un cane.
+## Project Context
+Grocery list management app for family use. Built for a family made up of
+Elastigirl, MrIncredibile, Dash, Violet, JackJack, Pluto. Reference
+supermarket: Tigre (Rome). They have a dog.
 
-## Architettura
-Due livelli, nessun backend scritto da noi:
-- **UI** → `source/` — HTML5 + JavaScript vanilla, responsive (mobile/tablet/desktop), PWA
-- **Backend & Database** → **Supabase** (Postgres gestito + sync realtime), usato
-  direttamente dal frontend via `@supabase/supabase-js` — vedi `source/js/storage.js`.
-  Tabella `stato` (chiave/valore, per tutto tranne la lista) e tabella `prodotti`
-  (una riga per prodotto, per evitare che due persone che aggiungono/modificano
-  prodotti diversi nello stesso istante si sovrascrivano a vicenda)
+## Architecture
+Two layers, no backend written by us:
+- **UI** → `source/` — HTML5 + vanilla JavaScript, responsive (mobile/tablet/desktop), PWA
+- **Backend & Database** → **Supabase** (managed Postgres + realtime sync), used
+  directly from the frontend via `@supabase/supabase-js` — see `source/js/storage.js`.
+  `stato` table (key/value, for everything except the list) and `prodotti` table
+  (one row per product, so two people adding/editing different products at
+  the same instant don't overwrite each other)
 
-Documentazione completa in `doc/design.md`.
-Requisiti completi in `doc/requisiti.md`.
+Full architecture docs in `doc/design.md`.
+Full requirements in `doc/requisiti.md`.
 
-## Struttura Cartelle
+## Folder Structure
 ```
 github demo/
 ├── source/       ← frontend (HTML, CSS, JS)
 ├── doc/          ← design.md, requisiti.md
-├── test/         ← test
+├── test/         ← tests
 ├── README.md
 └── CLAUDE.md
 ```
 
-## Stato Attuale
-- [x] Frontend completo, in uso quotidiano dalla famiglia
-- [x] Struttura cartelle organizzata
-- [x] Architettura documentata (allineata a Supabase)
-- [x] Requisiti documentati (allineati a ciò che è davvero implementato)
-- [x] Repository git inizializzato
-- [x] Dizionario prodotti implementato in `source/js/categorie.js`
-- [x] Backend & Database: Supabase, già in produzione (niente Flask/MySQL:
-      deciso di restare su Supabase, vedi `doc/design.md`)
-- [x] Sincronizzazione realtime tra i dispositivi della famiglia
+## Current Status
+- [x] Frontend complete, in daily use by the family
+- [x] Folder structure organized
+- [x] Architecture documented (aligned with Supabase)
+- [x] Requirements documented (aligned with what's actually implemented)
+- [x] Git repository initialized
+- [x] Product dictionary implemented in `source/js/categorie.js`
+- [x] Backend & Database: Supabase, already in production (no Flask/MySQL:
+      decided to stay on Supabase, see `doc/design.md`)
+- [x] Realtime sync across the family's devices
 
-## Regole Importanti
-- **Nessuna funzionalità finanziaria** — no budget, no prezzi, no spese
-- **Solo JackJack è amministratore** — può azzerare storico/statistiche dalla Zona
-  Amministratore nel Profilo. Gli altri membri sono alla pari per tutto il resto
-  (eliminare un prodotto dipende da chi lo ha aggiunto, non dal ruolo admin)
-- **Nessun reset automatico** — un prodotto resta in lista finché non viene
-  comprato o cancellato apposta (swipe). Lo swipe mostra anche da quando è lì
-  ("Oggi"/"Ieri"/data). Il reset a mezzanotte c'era ma è stato tolto: cancellava
-  tutta la lista ogni notte anche nei giorni in cui nessuno andava a fare la spesa
-- **17 categorie** con emoji e colore — vedere dizionario completo in `doc/requisiti.md`
-- Il campo **"per chi"** non esiste nel form — il prodotto è associato al membro attivo
-- Il campo **"prezzo stimato"** non esiste nel form
-- Il pulsante principale si chiama **"Vado a fa la spesa"** (romano)
-- Quando un membro clicca "Vado a fa la spesa" compare banner **"[Nome] sta a fa la spesa"**
+## Important Rules
+- **No financial features** — no budget, no prices, no expenses
+- **Only JackJack is admin** — can reset history/stats from the Admin Zone
+  in Profile. Other members are equal peers for everything else (deleting a
+  product depends on who added it, not on admin role)
+- **No automatic reset** — a product stays on the list until it's bought or
+  deliberately deleted (swipe). The swipe also shows since when it's been
+  there ("Today"/"Yesterday"/date). There used to be a midnight reset, now
+  removed: it cleared the whole list every night even on days nobody went
+  shopping
+- **17 categories** with emoji and color — see the full dictionary in `doc/requisiti.md`
+- The **"for whom"** field doesn't exist in the form — the product is
+  associated with the active member
+- The **"estimated price"** field doesn't exist in the form
+- The main button is called **"Vado a fa la spesa"** ("Going grocery
+  shopping", in Roman dialect)
+- When a member taps "Vado a fa la spesa" a banner appears: **"[Name] sta a
+  fa la spesa"** ("[Name] is grocery shopping")
 
-## Dizionario Prodotti
-Centinaia di prodotti mappati su 17 categorie in `source/js/categorie.js`
-(oggetto `DIZIONARIO`). Usato per il riconoscimento automatico della categoria
-quando si aggiunge un prodotto — gira interamente nel browser, nessuna
-chiamata di rete.
+## Product Dictionary
+Hundreds of products mapped to 17 categories in `source/js/categorie.js`
+(the `DIZIONARIO` object). Used for automatic category recognition when
+adding a product — runs entirely in the browser, no network calls.
 
 ## Deployment Target
-- **Frontend** → Netlify (drag & drop di `source/`)
-- **Backend & Database** → Supabase (URL e chiave pubblica in `source/js/config.js`,
-  escluso da git — vedi `source/js/config.example.js` per il modello)
+- **Frontend** → Netlify (drag & drop of `source/`)
+- **Backend & Database** → Supabase (URL and public key in
+  `source/js/config.js`, excluded from git — see `source/js/config.example.js`
+  for the template)
 
-## Comandi Utili
+## Useful Commands
 ```bash
-# Avvia preview locale frontend
+# Start local frontend preview
 python -m http.server 3456 --directory source/
 
 # Git
 git status
 git add .
-git commit -m "messaggio"
+git commit -m "message"
 ```
