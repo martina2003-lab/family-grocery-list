@@ -7,12 +7,28 @@
 const LOCAL_ONLY = new Set(['membroAttivo', 'tema']);
 
 const Storage = {
-  _client:  null,
-  _ready:   false,
-  _onready: [],
+  _client:   null,
+  _ready:    false,
+  _onready:  [],
+  demoMode:  false,
 
   // ── Inizializzazione ─────────────────────────────────────────
+  // Se manca js/config.js (SUPABASE_URL/KEY non definite), l'app parte in
+  // "modalità demo": nessuna connessione a Supabase, tutto resta solo in
+  // localStorage su questo dispositivo/browser. Tutte le funzioni di
+  // scrittura qui sotto già controllano `if (!this._client) return` prima
+  // di parlare con Supabase, quindi non serve nessun altro cambiamento:
+  // l'app funziona subito, senza dover configurare nulla.
   async init() {
+    if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_KEY === 'undefined') {
+      this.demoMode = true;
+      if (!localStorage.getItem('lista')) this._seedDemo();
+      this._ready = true;
+      this._onready.forEach(fn => fn());
+      this._onready = [];
+      return;
+    }
+
     const { createClient } = supabase;
     this._client = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -67,6 +83,23 @@ const Storage = {
   onReady(fn) {
     if (this._ready) fn();
     else this._onready.push(fn);
+  },
+
+  // Qualche prodotto di esempio così un visitatore vede subito la lista
+  // popolata, invece che vuota, al primo avvio in modalità demo.
+  _seedDemo() {
+    const ora = Date.now();
+    const demo = [
+      { nome: 'Latte',   categoria: 'latticini', aggiuntoDa: 'Elastigirl',      dataAggiunta: ora },
+      { nome: 'Pane',    categoria: 'pane',       aggiuntoDa: 'Mr. Incredibile', dataAggiunta: ora },
+      { nome: 'Banane',  categoria: 'frutta',     aggiuntoDa: 'Dash',            dataAggiunta: ora },
+      { nome: 'Detersivo piatti', categoria: 'pulizia', aggiuntoDa: 'Violet',    dataAggiunta: ora },
+      { nome: 'Crocchette cane',  categoria: 'animali', aggiuntoDa: 'Pluto',     dataAggiunta: ora },
+    ].map((p, i) => ({
+      id: 'demo_' + ora + '_' + i, quantita: 1, unita: 'pz', nota: '',
+      perChi: null, spuntato: false, nonAcquistato: false, ...p,
+    }));
+    localStorage.setItem('lista', JSON.stringify(demo));
   },
 
   // Aggiorna le viste quando arriva un aggiornamento da un altro dispositivo.
