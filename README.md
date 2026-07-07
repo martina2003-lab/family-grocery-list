@@ -1,52 +1,38 @@
-# 🛒 App Spesa Famiglia
+# 🛒 Family Grocery List
 
-App di gestione lista della spesa pensata per l'uso familiare: più persone
-condividono la stessa lista in tempo reale, ognuno con il proprio profilo.
+A grocery list app for family use: everyone shares the same list in real
+time, each with their own profile.
 
-Questa è una **versione dimostrativa** del progetto: stesso codice dell'app
-usata quotidianamente, con nomi e avatar sostituiti da personaggi di fantasia
-per non esporre dati reali.
+This is a **demo version** of the project: same code as the app used daily,
+with names and avatars replaced by fictional characters so no real data is
+exposed.
 
-## Funzionalità
+## Features
 
-- Lista della spesa condivisa e sincronizzata in tempo reale tra dispositivi
-- Riconoscimento automatico della categoria del prodotto (17 categorie, con
-  centinaia di prodotti già mappati) e icona/emoji specifica per prodotto
-- Prodotti preferiti per aggiungerli alla lista con un tap
-- Banner "sta a fa la spesa" quando un membro inizia gli acquisti
-- Grafici e statistiche (prodotti più comprati, andamento per periodo)
-- Profili multipli con avatar personalizzabili, uno amministratore per la
-  gestione dello storico
-- PWA installabile su mobile, tema chiaro/scuro
+- Shared grocery list, synced in real time across devices
+- Automatic product category detection (17 categories, with hundreds of
+  products already mapped) plus a product-specific icon/emoji
+- Favorite products for adding them to the list with one tap
+- "Is shopping now" banner when a member starts shopping
+- Charts and stats (most bought products, trends over time)
+- Multiple profiles with customizable avatars, one admin for managing history
+- Installable PWA on mobile, light/dark theme
 
-## Stack tecnico
+## Tech stack
 
-- **Frontend**: HTML5 + JavaScript vanilla, nessun framework — vedi `source/`
-- **Backend & Database**: [Supabase](https://supabase.com) (Postgres gestito
-  + sincronizzazione realtime), usato direttamente dal frontend
+- **Frontend**: HTML5 + vanilla JavaScript, no framework — see `source/`
+- **Backend & Database**: [Supabase](https://supabase.com) (managed
+  Postgres + realtime sync), used directly from the frontend
 
-Dettagli di architettura in [`doc/design.md`](doc/design.md), requisiti
-completi in [`doc/requisiti.md`](doc/requisiti.md).
+Architecture details in [`doc/design.md`](doc/design.md), full requirements
+in [`doc/requisiti.md`](doc/requisiti.md).
 
-## Avviare il progetto in locale
+## Running the project locally
 
-1. Crea un progetto su [Supabase](https://supabase.com) con le tabelle
-   `stato` (chiave/valore) e `prodotti` (vedi `doc/design.md` per lo schema)
-2. Copia `source/js/config.example.js` in `source/js/config.js` e inserisci
-   URL e chiave pubblica del tuo progetto Supabase
-3. Avvia un server statico dalla cartella `source/`:
+1. Create a project on [Supabase](https://supabase.com) with the `stato`
+   (key/value) and `prodotti` tables (see `doc/design.md` for the schema)
+2. Copy `source/js/config.example.js` to `source/js/config.js` and fill in
+   your Supabase project URL and public key
+3. Start a static server from the `source/` folder:
    ```bash
    python -m http.server 3456 --directory source/
-   ```
-4. Apri `http://localhost:3456`
-
-`source/js/config.js` non viene incluso nel repository (vedi `.gitignore`):
-ogni chi lo esegue in locale usa le proprie credenziali.
-
-## Struttura cartelle
-
-```
-├── source/   ← frontend (HTML, CSS, JS)
-├── doc/      ← design.md, requisiti.md
-└── test/     ← test
-```
