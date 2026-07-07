@@ -36,3 +36,16 @@ in [`doc/requisiti.md`](doc/requisiti.md).
 3. Start a static server from the `source/` folder:
    ```bash
    python -m http.server 3456 --directory source/
+   ```
+4. Open `http://localhost:3456`
+
+`source/js/config.js` is not included in the repository (see `.gitignore`):
+anyone running it locally uses their own credentials.
+
+## Folder structure
+
+```
+├── source/   ← frontend (HTML, CSS, JS)
+├── doc/      ← design.md, requisiti.md
+└── test/     ← tests
+```
