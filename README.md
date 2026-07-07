@@ -29,6 +29,21 @@ in [`doc/requisiti.md`](doc/requisiti.md).
 
 ## Running the project locally
 
+### Quick look — local demo mode (no setup needed)
+
+If `source/js/config.js` is missing, the app automatically starts in local
+demo mode: no Supabase connection, a few sample products already in the
+list, everything saved only in this browser's `localStorage` (a small
+"DEMO" badge appears in the header as a reminder). Just:
+
+```bash
+python -m http.server 3456 --directory source/
+```
+
+and open `http://localhost:3456` — that's it.
+
+### Full setup — connect your own Supabase project
+
 1. Create a project on [Supabase](https://supabase.com) with the `stato`
    (key/value) and `prodotti` tables (see `doc/design.md` for the schema)
 2. Copy `source/js/config.example.js` to `source/js/config.js` and fill in
